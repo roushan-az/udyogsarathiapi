@@ -1,0 +1,44 @@
+# ── Web Framework ─────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.18          # multipart/form-data file uploads
+
+# ── Database (PostgreSQL async) ────────────────────────────────────
+sqlalchemy==2.0.36
+asyncpg==0.30.0                   # async PostgreSQL driver
+alembic==1.14.0                   # database migrations
+psycopg[binary]==3.3.4            # Updated for Python 3.13/3.14
+
+# ── Azure SDKs ────────────────────────────────────────────────────
+azure-storage-blob==12.23.1       # Azure Blob Storage
+azure-identity==1.19.0            # DefaultAzureCredential / managed identity
+
+# ── Image → PDF conversion ────────────────────────────────────────
+Pillow==11.0.0                    # image processing
+reportlab==4.2.5                  # PDF generation from images
+img2pdf==0.5.1                    # fast lossless image-to-PDF (fallback)
+
+# ── Auth & Security ───────────────────────────────────────────────
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4            # password hashing
+bcrypt==4.2.1
+
+# ── Configuration ─────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.7.0          # settings from .env
+python-dotenv==1.0.1
+
+# ── CORS / HTTP ───────────────────────────────────────────────────
+httpx==0.28.1                     # async HTTP client (health checks)
+
+# ── Utilities ─────────────────────────────────────────────────────
+python-slugify==8.0.4             # safe filename generation
+shortuuid==1.0.13                 # short unique IDs for blob names
+aiofiles==24.1.0                  # async file I/O
+structlog==24.4.0                 # structured JSON logging
+
+# ── Testing ───────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1
+pytest-cov==6.0.0
