@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     AZURE_STORAGE_ACCOUNT_KEY: str = ""
     USE_MANAGED_IDENTITY: bool = False
 
+    # ── Local Storage Mock (ADD THIS) ─────────────────────────────────────────
+    USE_LOCAL_STORAGE: bool = True
+    LOCAL_UPLOAD_DIR: str = "local_uploads"
+
     # ── File Upload ───────────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 10
     ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/webp,image/tiff,image/bmp"

@@ -9,7 +9,7 @@ This file creates the FastAPI app, configures:
   • Custom exception handlers
   • OpenAPI metadata
 """
-
+import os  # <--- ADD THIS
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles  # <--- ADD THIS
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -111,6 +112,15 @@ def create_app() -> FastAPI:
 
     # ── Exception handlers ────────────────────────────────────────────────────
     register_exception_handlers(app)
+    # ── Local File Serving (Offline Mode) ─────────────────────────────────────
+    # ADD THIS NEW BLOCK: Serves files from hard drive instead of Azure
+    if settings.USE_LOCAL_STORAGE:
+        os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)
+        app.mount(
+            "/api/local-files",
+            StaticFiles(directory=settings.LOCAL_UPLOAD_DIR),
+            name="local_uploads"
+        )
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(api_router, prefix=settings.API_PREFIX)
