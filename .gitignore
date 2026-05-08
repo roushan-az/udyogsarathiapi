@@ -1,0 +1,28 @@
+# ─── SECRETS & PASSWORDS ──────────────────────
+.env
+.env.production
+.env.local
+*.pem
+
+# ─── PYTHON CACHE (The messy system files) ────
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# ─── VIRTUAL ENVIRONMENTS ─────────────────────
+venv/
+.venv/
+env/
+/env
+
+# ─── IDE & EDITOR FILES ───────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── PROJECT SPECIFIC UPLOADS ─────────────────
+local_uploads/
+/dist
+/build
