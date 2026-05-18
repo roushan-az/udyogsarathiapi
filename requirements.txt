@@ -3,15 +3,20 @@ fastapi==0.115.6
 uvicorn[standard]==0.32.1
 python-multipart==0.0.18          # multipart/form-data file uploads
 
+# ── Azure Functions (NEW) ──────────────────────────────────────────
+azure-functions==1.21.3           # Core library for Python V4 model
+nest-asyncio==1.6.0               # Required for FastAPI async loop in Functions
+
 # ── Database (PostgreSQL async) ────────────────────────────────────
 sqlalchemy==2.0.36
-asyncpg==0.30.0                   # async PostgreSQL driver
+asyncpg==0.30.0                   # async PostgreSQL driver (Works with Supabase)
 alembic==1.14.0                   # database migrations
-psycopg[binary]==3.3.4            # Updated for Python 3.13/3.14
+psycopg[binary]==3.3.4
 
-# ── Azure SDKs ────────────────────────────────────────────────────
-azure-storage-blob==12.23.1       # Azure Blob Storage
-azure-identity==1.19.0            # DefaultAzureCredential / managed identity
+# ── Storage: Cloudflare R2 (NEW) ───────────────────────────────────
+boto3==1.34.162                   # S3-compatible SDK for Cloudflare R2
+# azure-storage-blob==12.23.1     # Can be removed once R2 is fully tested
+# azure-identity==1.19.0          # Can be removed once R2 is fully tested
 
 # ── Image → PDF conversion ────────────────────────────────────────
 Pillow==11.0.0                    # image processing
@@ -40,5 +45,4 @@ structlog==24.4.0                 # structured JSON logging
 # ── Testing ───────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
-httpx==0.28.1
 pytest-cov==6.0.0

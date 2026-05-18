@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
 
+    # ── Storage Configuration ─────────────────────────────────────────────────
+    USE_LOCAL_STORAGE: bool = True
+    STORAGE_MODE: str = "S3"  # Options: LOCAL, AZURE, S3
+
+    # Cloudflare R2 / S3 Settings
+    R2_ACCOUNT_ID: str = "74a3ad8b6d42ad00c97803ed2a068ebb"
+    R2_ACCESS_KEY_ID: str = "576077631e019ff430761074f788f464"
+    R2_SECRET_ACCESS_KEY: str = "a0f0cbdc3116832678d619889d6141d9967800757d93279eecfa2379501b780e"
+    R2_BUCKET_NAME: str = "udyog-sarathi-docs"
+    R2_ENDPOINT_URL: str = "https://74a3ad8b6d42ad00c97803ed2a068ebb.r2.cloudflarestorage.com"
+
     # ── Azure Blob Storage ────────────────────────────────────────────────────
     AZURE_STORAGE_ACCOUNT_NAME: str = "udyogsarathi"
     AZURE_STORAGE_CONTAINER_NAME: str = "documents"
