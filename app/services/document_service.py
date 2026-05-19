@@ -1,4 +1,3 @@
-
 import json
 import uuid
 from datetime import datetime, timezone
@@ -102,7 +101,6 @@ async def upload_document(
 ) -> UploadResponse:
     """
     Full upload pipeline with FAIL-SAFE rollback.
-    If DB insert fails after Blob upload → blob is deleted → no orphaned files.
     """
     _validate_upload(file_bytes, content_type, filename)
     tags = _parse_tags(tags_raw)
@@ -112,8 +110,8 @@ async def upload_document(
     # Step 1 — Image → PDF in memory
     pdf_bytes, page_count = pdf_service.convert_image_to_pdf(file_bytes, content_type)
 
-    # Step 2 — Upload PDF to Azure Blob
-    blob_url, blob_name = blob_service.upload_pdf_to_blob(
+    # Step 2 — Upload PDF to Storage (AWAITED - Cloudflare R2 or Local)
+    storage_url, blob_name = await blob_service.upload_pdf_to_blob(
         pdf_bytes=pdf_bytes,
         original_filename=filename,
         category=category,
@@ -127,15 +125,15 @@ async def upload_document(
         id=doc_id,
         file_name=pdf_filename,
         original_name=filename,
-        blob_url=blob_url,
+        blob_url=storage_url, # Uses the new storage_url
         blob_name=blob_name,
         category=DocumentCategory(category),
         status=DocumentStatus.uploaded,
-        file_size=len(file_bytes),
-        pdf_size=len(pdf_bytes),
+        file_size=len(file_bytes),      # RESTORED
+        pdf_size=len(pdf_bytes),        # RESTORED
         page_count=page_count,
-        mime_type=content_type,
-        tags=tags,
+        mime_type=content_type,         # RESTORED
+        tags=tags,                      # RESTORED
         uploaded_by_id=uuid.UUID(user_id) if user_id and user_id != "dev-user" else None,
         uploaded_by_name=user_name,
         uploaded_at=datetime.now(timezone.utc),
@@ -153,26 +151,22 @@ async def upload_document(
             success=True,
             message="Document uploaded and stored successfully.",
             document=DocumentOut.from_orm_model(document),
-            blob_url=blob_url,
+            storageUrl=storage_url,
         )
 
     except Exception as db_exc:
-        # ── FAIL-SAFE: DB failed → rollback → delete orphaned blob ──────────
+        # FAIL-SAFE: DB failed → rollback → delete orphaned blob
         logger.error("upload_db_failed", doc_id=str(doc_id), blob=blob_name, error=str(db_exc))
         await db.rollback()
 
         try:
-            blob_service.delete_blob(blob_name)
+            await blob_service.delete_blob(blob_name) # AWAITED
             logger.info("fail_safe_blob_deleted", blob=blob_name)
         except Exception as blob_exc:
             logger.error("fail_safe_delete_failed", blob=blob_name, error=str(blob_exc))
 
         raise TransactionRollbackError(
-            detail=(
-                "Database insertion failed. "
-                "The uploaded PDF has been removed from Azure Blob Storage. "
-                "No orphaned files remain. Please try again."
-            ),
+            detail="Database insertion failed. The PDF has been removed from storage. Please try again.",
             original_error=str(db_exc),
         )
 
@@ -215,11 +209,9 @@ async def list_documents(
     if date_to:
         stmt = stmt.where(Document.uploaded_at <= datetime.fromisoformat(date_to))
 
-    # Count total for pagination
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()
 
-    # Paginate
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     docs = (await db.execute(stmt)).scalars().all()
 
@@ -259,13 +251,12 @@ async def log_view(
     user_id: Optional[str],
     user_name: str = "Unknown",
 ) -> None:
-    """Write a 'view' activity log entry without altering the document."""
     activity = _make_activity(ActivityAction.view, document, user_id, user_name)
     db.add(activity)
     try:
         await db.commit()
     except Exception:
-        await db.rollback()  # non-fatal
+        await db.rollback()
 
 
 # ── Delete ────────────────────────────────────────────────────────────────────
@@ -276,11 +267,10 @@ async def delete_document(
     user_id:   Optional[str],
     user_name: str = "Admin",
 ) -> None:
-    """Delete blob from Azure then soft-delete the DB record."""
     doc = await get_document(db, document_id)
 
-    # 1 — Delete from Azure Blob
-    blob_service.delete_blob(doc.blob_name)
+    # 1 — Delete from Storage (AWAITED)
+    await blob_service.delete_blob(doc.blob_name)
     logger.info("blob_deleted", blob=doc.blob_name)
 
     # 2 — Soft-delete in PostgreSQL
@@ -314,16 +304,12 @@ async def get_download_url(
 # ── Dashboard stats ───────────────────────────────────────────────────────────
 
 async def get_dashboard_stats(db: AsyncSession) -> DashboardStatsOut:
-    """Aggregate stats from PostgreSQL — all live data, no mocks."""
-
-    # Total documents (non-deleted)
     total_docs: int = (
         await db.execute(
             select(func.count(Document.id)).where(Document.is_deleted == False)  # noqa: E712
         )
     ).scalar_one()
 
-    # Documents this month
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     docs_this_month: int = (
@@ -335,7 +321,6 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardStatsOut:
         )
     ).scalar_one()
 
-    # Per-category counts
     cat_rows = (
         await db.execute(
             select(Document.category, func.count(Document.id))
@@ -347,7 +332,6 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardStatsOut:
     for cat in ["Sales", "Purchase", "Inventory", "HR", "Finance", "Legal"]:
         category_counts.setdefault(cat, 0)
 
-    # Per-category storage (PDF bytes) and doc count
     storage_rows = (
         await db.execute(
             select(
@@ -368,14 +352,12 @@ async def get_dashboard_stats(db: AsyncSession) -> DashboardStatsOut:
         for row in storage_rows
     ]
 
-    # Total storage
     total_storage: int = (
         await db.execute(
             select(func.sum(Document.pdf_size)).where(Document.is_deleted == False)  # noqa: E712
         )
     ).scalar_one() or 0
 
-    # Recent activity — last 10 entries
     activity_rows = (
         await db.execute(
             select(ActivityLog).order_by(ActivityLog.timestamp.desc()).limit(10)

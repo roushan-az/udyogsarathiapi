@@ -1,11 +1,12 @@
 import azure.functions as func
 import nest_asyncio
-from fastapi import FastAPI
-from app.api.v1.router import api_router
+from app.main import app as fastapi_app
 
+# Bridges the FastAPI async loop with Azure Functions
 nest_asyncio.apply()
-app = FastAPI(title="Udyog Sarathi API")
-app.include_router(api_router)
 
-# The Azure Function wrapper
-app = func.AsgiFunctionApp(app=app, http_auth_level=func.AuthLevel.ANONYMOUS)
+# Azure Functions V4 Wrapper
+app = func.AsgiFunctionApp(
+    app=fastapi_app,
+    http_auth_level=func.AuthLevel.ANONYMOUS
+)

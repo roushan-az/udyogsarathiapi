@@ -1,9 +1,3 @@
-# app/db/base.py
-"""
-Async SQLAlchemy engine, session factory and declarative base.
-All database I/O in this app is fully async via asyncpg.
-"""
-
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -13,6 +7,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool # <-- 1. ADD THIS IMPORT
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -29,16 +24,20 @@ class Base(DeclarativeBase):
 
 # ── Engine ───────────────────────────────────────────────────────────────────
 
+# app/db/base.py
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,                 # logs SQL in debug mode
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_pre_ping=True,                  # reconnect on stale connections
-    pool_recycle=1800,                   # recycle connections every 30 min
-)
+    echo=settings.DEBUG,
 
+    # 2. USE NULLPOOL: Let Supabase handle all pooling!
+    poolclass=NullPool,
+
+    # 3. REMOVE pool_size, max_overflow, pool_timeout, and pool_recycle.
+    # 4. ADD the statement_cache_size bypass
+    connect_args={
+        "statement_cache_size": 0
+    }
+)
 
 # ── Session factory ───────────────────────────────────────────────────────────
 
