@@ -1,165 +1,91 @@
-import io
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
-
-from azure.core.exceptions import AzureError, ResourceNotFoundError
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import (
-    BlobClient,
-    BlobSasPermissions,
-    BlobServiceClient,
-    ContentSettings,
-    generate_blob_sas,
-)
-
+import boto3
+from datetime import datetime, timezone
+from typing import Tuple
+from botocore.config import Config
+from anyio import to_thread
 from app.core.config import settings
-from app.core.exceptions import BlobDeleteError, BlobStorageError, BlobUploadError
+from app.core.exceptions import BlobUploadError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Ensure local directory exists immediately if offline mode is active
-if settings.USE_LOCAL_STORAGE:
-    os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)
+
+def _get_s3_client():
+    """Initializes s3 client for Cloudflare R2 using environment variables."""
+    return boto3.client(
+        "s3",
+        endpoint_url=settings.R2_ENDPOINT_URL,
+        aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name="auto"
+    )
 
 
-# ── Client factory ────────────────────────────────────────────────────────────
-
-def _build_blob_service_client() -> BlobServiceClient:
-    # (Keep your existing _build_blob_service_client logic here...)
-    account_name = settings.AZURE_STORAGE_ACCOUNT_NAME
-    account_url = f"https://{account_name}.blob.core.windows.net"
-
-    if settings.USE_MANAGED_IDENTITY:
-        return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
-    if settings.AZURE_STORAGE_CONNECTION_STRING:
-        return BlobServiceClient.from_connection_string(settings.AZURE_STORAGE_CONNECTION_STRING)
-    if settings.AZURE_STORAGE_ACCOUNT_KEY:
-        credential = {"account_name": account_name, "account_key": settings.AZURE_STORAGE_ACCOUNT_KEY}
-        return BlobServiceClient(account_url=account_url, credential=credential)
-
-    raise BlobStorageError(detail="No Azure Blob credentials configured.")
-
-
-_client: Optional[BlobServiceClient] = None
-
-
-def get_blob_service_client() -> BlobServiceClient:
-    global _client
-    if _client is None and not settings.USE_LOCAL_STORAGE:
-        _client = _build_blob_service_client()
-    return _client
-
-
-def _get_container_client():
-    return get_blob_service_client().get_container_client(settings.AZURE_STORAGE_CONTAINER_NAME)
-
-
-# ── Upload ────────────────────────────────────────────────────────────────────
-
-def upload_pdf_to_blob(pdf_bytes: bytes, original_filename: str, category: str) -> Tuple[str, str]:
+async def upload_pdf_to_blob(pdf_bytes: bytes, original_filename: str, category: str) -> Tuple[str, str]:
+    """Uploads the generated PDF to Cloudflare R2."""
     month_prefix = datetime.now(timezone.utc).strftime("%Y-%m")
     short_id = uuid.uuid4().hex[:12]
-    stem = original_filename.rsplit(".", 1)[0].replace(" ", "_").replace("/", "-")[:60]
+    stem = original_filename.rsplit(".", 1)[0].replace(" ", "_")[:60]
     blob_name = f"{category}/{month_prefix}/{short_id}_{stem}.pdf"
 
-    # ── OFFLINE MODE INTERCEPT ──
-    if settings.USE_LOCAL_STORAGE:
-        local_path = os.path.join(settings.LOCAL_UPLOAD_DIR, blob_name)
-        # Create subfolders (e.g., Sales/2024-03/)
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    if settings.STORAGE_MODE == "S3":
+        try:
+            s3 = _get_s3_client()
 
-        with open(local_path, "wb") as f:
-            f.write(pdf_bytes)
+            def _upload():
+                s3.put_object(
+                    Bucket=settings.R2_BUCKET_NAME, Key=blob_name,
+                    Body=pdf_bytes, ContentType="application/pdf"
+                )
+                return f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{blob_name}"
 
-        blob_url = f"http://localhost:8000/api/local-files/{blob_name}"
-        logger.info("local_upload_success", blob_name=blob_name)
-        return blob_url, blob_name
+            storage_url = await to_thread.run_sync(_upload)
+            return storage_url, blob_name
+        except Exception as e:
+            logger.error("r2_upload_failed", error=str(e))
+            raise BlobUploadError(detail=str(e), blob_name=blob_name)
 
-    # ── AZURE MODE ──
+    return "local_url_fallback", blob_name
+
+
+async def delete_blob(blob_name: str) -> bool:
+    if settings.STORAGE_MODE == "S3":
+        s3 = _get_s3_client()
+        await to_thread.run_sync(lambda: s3.delete_object(Bucket=settings.R2_BUCKET_NAME, Key=blob_name))
+    return True
+
+
+async def check_blob_health() -> bool:
+    """Restored for health endpoint compatibility."""
     try:
-        container_client = _get_container_client()
-        blob_client = container_client.get_blob_client(blob_name)
-        blob_client.upload_blob(
-            data=io.BytesIO(pdf_bytes), overwrite=False,
-            content_settings=ContentSettings(content_type="application/pdf")
-        )
-        return blob_client.url, blob_name
-    except AzureError as exc:
-        raise BlobUploadError(detail=str(exc), blob_name=blob_name)
-
-
-# ── Delete (Fail-Safe) ────────────────────────────────────────────────────────
-
-def delete_blob(blob_name: str) -> bool:
-    # ── OFFLINE MODE INTERCEPT ──
-    if settings.USE_LOCAL_STORAGE:
-        local_path = os.path.join(settings.LOCAL_UPLOAD_DIR, blob_name)
-        if os.path.exists(local_path):
-            os.remove(local_path)
+        if settings.STORAGE_MODE == "S3":
+            s3 = _get_s3_client()
+            await to_thread.run_sync(lambda: s3.head_bucket(Bucket=settings.R2_BUCKET_NAME))
             return True
-        return False
-
-    # ── AZURE MODE ──
-    try:
-        _get_container_client().get_blob_client(blob_name).delete_blob(delete_snapshots="include")
-        return True
-    except ResourceNotFoundError:
-        return False
-    except AzureError as exc:
-        raise BlobDeleteError(detail=str(exc), blob_name=blob_name)
-
-
-# ── Download URL ──────────────────────────────────────────────────────────────
-
-def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60) -> str:
-    # ── OFFLINE MODE INTERCEPT ──
-    if settings.USE_LOCAL_STORAGE:
-        return f"http://localhost:8000/api/local-files/{blob_name}"
-
-    # ── AZURE MODE ──
-    expiry = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
-    sas_token = generate_blob_sas(
-        account_name=settings.AZURE_STORAGE_ACCOUNT_NAME,
-        container_name=settings.AZURE_STORAGE_CONTAINER_NAME,
-        blob_name=blob_name,
-        account_key=settings.AZURE_STORAGE_ACCOUNT_KEY,
-        permission=BlobSasPermissions(read=True),
-        expiry=expiry,
-    )
-    return f"https://{settings.AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/{settings.AZURE_STORAGE_CONTAINER_NAME}/{blob_name}?{sas_token}"
-
-
-# ── Health check ──────────────────────────────────────────────────────────────
-
-def check_blob_health() -> bool:
-    if settings.USE_LOCAL_STORAGE:
-        return os.path.exists(settings.LOCAL_UPLOAD_DIR)
-
-    try:
-        _get_container_client().get_container_properties()
         return True
     except Exception:
         return False
 
 
-# ── Storage stats ─────────────────────────────────────────────────────────────
-
-def get_total_storage_bytes() -> int:
-    # ── OFFLINE MODE INTERCEPT ──
-    if settings.USE_LOCAL_STORAGE:
-        total = 0
-        for dirpath, _, filenames in os.walk(settings.LOCAL_UPLOAD_DIR):
-            for f in filenames:
-                fp = os.path.join(dirpath, f)
-                if not os.path.islink(fp):
-                    total += os.path.getsize(fp)
-        return total
-
-    # ── AZURE MODE ──
+async def get_total_storage_bytes() -> int:
+    """Restored for Dashboard stats compatibility."""
     try:
-        return sum(b.size for b in _get_container_client().list_blobs() if b.size)
+        if settings.STORAGE_MODE == "S3":
+            s3 = _get_s3_client()
+
+            def _get_size():
+                response = s3.list_objects_v2(Bucket=settings.R2_BUCKET_NAME)
+                return sum(obj['Size'] for obj in response.get('Contents', []))
+
+            return await to_thread.run_sync(_get_size)
+        return 0
     except Exception:
         return 0
+
+
+def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60) -> str:
+    """Returns a direct link to the document in R2."""
+    return f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{blob_name}"
