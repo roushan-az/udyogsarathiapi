@@ -48,3 +48,5 @@ pytest-asyncio==0.24.0
 pytest-cov==6.0.0
 
 azure-functions>=1.17.0
+
+nest-asyncio
