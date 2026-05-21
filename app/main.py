@@ -9,7 +9,7 @@ This file creates the FastAPI app, configures:
   • Custom exception handlers
   • OpenAPI metadata
 """
-import os  # <--- ADD THIS
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles  # <--- ADD THIS
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -80,13 +80,25 @@ def create_app() -> FastAPI:
 
     # ── Middleware ────────────────────────────────────────────────────────────
 
-    # CORS — allow React dev server and Azure Static Web App
+    # 1. FIXED CORS: Explicitly defining origins instead of relying on settings
+    allowed_origins = [
+        "http://localhost:5173", # Keep local development working
+        "https://calm-bush-0db371d1e.7.azurestaticapps.net" # Your live React app
+    ]
+
+    # Combine with any settings just in case
+    if isinstance(settings.cors_origins_list, list):
+        allowed_origins.extend(settings.cors_origins_list)
+
+    # Remove duplicates
+    allowed_origins = list(set(allowed_origins))
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+        allow_methods=["*"], # Allow all methods explicitly
+        allow_headers=["*"], # Allow all headers explicitly
         expose_headers=["X-Total-Count", "X-Request-ID"],
     )
 
@@ -113,7 +125,6 @@ def create_app() -> FastAPI:
     # ── Exception handlers ────────────────────────────────────────────────────
     register_exception_handlers(app)
     # ── Local File Serving (Offline Mode) ─────────────────────────────────────
-    # ADD THIS NEW BLOCK: Serves files from hard drive instead of Azure
     if settings.USE_LOCAL_STORAGE:
         os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)
         app.mount(
