@@ -3,10 +3,6 @@ fastapi==0.115.6
 uvicorn[standard]==0.32.1
 python-multipart==0.0.18          # multipart/form-data file uploads
 
-# ── Azure Functions (NEW) ──────────────────────────────────────────
-azure-functions==1.21.3           # Core library for Python V4 model
-nest-asyncio==1.6.0               # Required for FastAPI async loop in Functions
-
 # ── Database (PostgreSQL async) ────────────────────────────────────
 sqlalchemy==2.0.36
 asyncpg==0.30.0                   # async PostgreSQL driver (Works with Supabase)
