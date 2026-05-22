@@ -11,12 +11,10 @@ nest-asyncio==1.6.0               # Required for FastAPI async loop in Functions
 sqlalchemy==2.0.36
 asyncpg==0.30.0                   # async PostgreSQL driver (Works with Supabase)
 alembic==1.14.0                   # database migrations
-psycopg[binary]==3.3.4
+psycopg[binary]==3.3.4            # Pre-compiled driver (Safe for Azure Linux)
 
 # ── Storage: Cloudflare R2 (NEW) ───────────────────────────────────
 boto3==1.34.162                   # S3-compatible SDK for Cloudflare R2
-# azure-storage-blob==12.23.1     # Can be removed once R2 is fully tested
-# azure-identity==1.19.0          # Can be removed once R2 is fully tested
 
 # ── Image → PDF conversion ────────────────────────────────────────
 Pillow==11.0.0                    # image processing
@@ -46,7 +44,3 @@ structlog==24.4.0                 # structured JSON logging
 pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
-
-azure-functions>=1.17.0
-
-nest-asyncio
