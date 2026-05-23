@@ -69,7 +69,6 @@ async def check_blob_health() -> bool:
     except Exception:
         return False
 
-
 async def get_total_storage_bytes() -> int:
     """Restored for Dashboard stats compatibility."""
     try:
