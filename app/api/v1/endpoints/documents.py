@@ -137,22 +137,29 @@ async def delete_document(
     )
 
 
-# ── GET /documents/{id}/download ──────────────────────────────────────────────
+## ── GET /documents/{id}/download ──────────────────────────────────────────────
+from fastapi import Query
 
 @router.get(
     "/{document_id}/download",
-    summary="Get a time-limited Azure Blob SAS download URL (60 min)",
+    summary="Get a time-limited Cloudflare R2 pre-signed download URL (60 min)",
 )
 async def download_document(
     document_id: str,
+    # Explicitly set the default to 'attachment'
+    disposition: str = Query(default="attachment", description="attachment or inline"),
     db:          AsyncSession = Depends(get_db),
     user_id:     str          = Depends(get_current_user_id),
 ) -> dict:
     _, user_name = await resolve_user_display(db, user_id)
+
+    # Ensure disposition is passed down
     url = await document_service.get_download_url(
         db=db,
         document_id=document_id,
         user_id=user_id,
         user_name=user_name,
+        disposition=disposition
     )
     return {"downloadUrl": url, "expiresInMinutes": 60}
+

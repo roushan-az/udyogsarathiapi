@@ -290,16 +290,20 @@ async def get_download_url(
     document_id: str,
     user_id:     Optional[str],
     user_name:   str = "Admin",
+    disposition: str = "attachment",  # 👈 Add this line
 ) -> str:
     doc = await get_document(db, document_id)
-    url = blob_service.generate_download_sas_url(doc.blob_name, expires_in_minutes=60)
+    url = blob_service.generate_download_sas_url(
+        doc.blob_name,
+        expires_in_minutes=60,
+        disposition=disposition       # 👈 Add this line
+    )
 
     activity = _make_activity(ActivityAction.download, doc, user_id, user_name)
     db.add(activity)
     await db.commit()
 
     return url
-
 
 # ── Dashboard stats ───────────────────────────────────────────────────────────
 
