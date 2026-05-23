@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: str = "http://localhost:3000,https://your-app.azurestaticapps.net"
+    CORS_ORIGINS: str = "https://calm-bush-0db371d1e.7.azurestaticapps.net,http://localhost:3000,http://localhost:5173"
 
     @property
     def cors_origins_list(self) -> List[str]:
