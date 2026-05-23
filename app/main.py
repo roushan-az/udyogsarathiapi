@@ -64,7 +64,6 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        root_path="/api",
         description=(
             "**Udyog Sarathi** — Enterprise Document Management System\n\n"
             "Upload images → convert to PDF in memory → store in Azure Blob → "
