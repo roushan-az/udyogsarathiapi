@@ -85,7 +85,6 @@ async def get_total_storage_bytes() -> int:
         return 0
 
 
-# Change the function signature to accept 'disposition'
 def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60, disposition: str = "attachment") -> str:
     """Generates a secure, time-limited presigned URL using Cloudflare R2."""
     if settings.STORAGE_MODE == "S3":
@@ -95,8 +94,9 @@ def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60, disp
             Params={
                 'Bucket': settings.R2_BUCKET_NAME,
                 'Key': blob_name,
-                # Pass the variable here instead of hardcoding it!
-                'ResponseContentDisposition': disposition
+                # 👇 THESE TWO LINES ARE CRITICAL FOR THE BROWSER!
+                'ResponseContentDisposition': f'{disposition}; filename="document.pdf"',
+                'ResponseContentType': 'application/pdf'
             },
             ExpiresIn=expires_in_minutes * 60
         )
