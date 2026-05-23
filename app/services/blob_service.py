@@ -69,7 +69,6 @@ async def check_blob_health() -> bool:
     except Exception:
         return False
 
-
 async def get_total_storage_bytes() -> int:
     """Restored for Dashboard stats compatibility."""
     try:
@@ -86,6 +85,21 @@ async def get_total_storage_bytes() -> int:
         return 0
 
 
-def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60) -> str:
-    """Returns a direct link to the document in R2."""
-    return f"{settings.R2_ENDPOINT_URL}/{settings.R2_BUCKET_NAME}/{blob_name}"
+def generate_download_sas_url(blob_name: str, expires_in_minutes: int = 60, disposition: str = "attachment") -> str:
+    """Generates a secure, time-limited presigned URL using Cloudflare R2."""
+    if settings.STORAGE_MODE == "S3":
+        s3 = _get_s3_client()
+        url = s3.generate_presigned_url(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': settings.R2_BUCKET_NAME,
+                'Key': blob_name,
+                # 👇 THESE TWO LINES ARE CRITICAL FOR THE BROWSER!
+                'ResponseContentDisposition': f'{disposition}; filename="document.pdf"',
+                'ResponseContentType': 'application/pdf'
+            },
+            ExpiresIn=expires_in_minutes * 60
+        )
+        return url
+
+    return f"/local-downloads/{blob_name}"
