@@ -4,6 +4,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from app.schemas.document import LoginRequest, RegisterRequest, TokenResponse, UserOut
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -47,24 +48,42 @@ class ChangePasswordRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
 
-
+class RegisterRequestExtended(RegisterRequest):
+    admin_secret: Optional[str] = None
 # ── POST /auth/register ───────────────────────────────────────────────────────
 
 @router.post(
     "/register",
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Register a new user account",
-    description="Creates a new user in PostgreSQL with a bcrypt-hashed password.",
+    summary="Register a new user account (with optional Admin key)",
 )
 async def register(
-    body: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
+        body: RegisterRequestExtended,
+        db: AsyncSession = Depends(get_db),
 ) -> UserOut:
+    # A. Create a standard user payload (stripping out the secret)
+    base_body = RegisterRequest(
+        email=body.email,
+        password=body.password,
+        full_name=body.full_name
+    )
+
     try:
-        user = await create_user(db, body)
+        user = await create_user(db, base_body)
     except EmailAlreadyRegisteredError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.detail)
+
+    # B. 🔒 THE ADMIN GATE 🔒
+    # If they provided a secret, and it matches the .env file, flip the DB boolean!
+    if body.admin_secret and settings.ADMIN_SECRET_KEY:
+        if body.admin_secret == settings.ADMIN_SECRET_KEY:
+            user.is_superuser = True
+
+            # Save the admin status to PostgreSQL permanently
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
 
     return UserOut.from_orm_model(user)
 

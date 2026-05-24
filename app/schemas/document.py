@@ -14,7 +14,6 @@ class UdyogBase(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
-        # Set to False so Python variable names (camelCase) are used for JSON output
         serialize_by_alias=False,
     )
 
@@ -45,7 +44,6 @@ class RegisterRequest(UdyogBase):
 
 
 class TokenResponse(UdyogBase):
-    # Removed alias to ensure React sees "accessToken" instead of "access_token"
     accessToken:  str = Field(validation_alias="access_token")
     refreshToken: str = Field(validation_alias="refresh_token")
     tokenType:    str = Field(default="bearer", validation_alias="token_type")
@@ -54,32 +52,29 @@ class TokenResponse(UdyogBase):
 class UserOut(UdyogBase):
     id:          str
     email:       str
-    # validation_alias: Reads from DB 'full_name'
-    # Field name: Exports to JSON as 'fullName'
     fullName:    str  = Field(validation_alias="full_name")
     isActive:    bool = Field(validation_alias="is_active")
     isSuperuser: bool = Field(validation_alias="is_superuser")
 
     @classmethod
     def from_orm_model(cls, user: Any) -> "UserOut":
+        # 👈 FIX: Use the exact camelCase names defined above to satisfy PyCharm
         return cls(
             id=str(user.id),
             email=user.email,
-            full_name=user.full_name,
-            is_active=user.is_active,
-            is_superuser=user.is_superuser,
+            fullName=user.full_name,
+            isActive=user.is_active,
+            isSuperuser=user.is_superuser,
         )
 
 
-# ── Document (Generic Storage Updates) ────────────────────────────────────────
+# ── Document ──────────────────────────────────────────────────────────────────
 
 class DocumentOut(UdyogBase):
-    """Mirrors TypeScript Document interface — generic storage fields."""
     id:           str
     fileName:     str          = Field(validation_alias="file_name")
     originalName: str          = Field(validation_alias="original_name")
     category:     DocumentCategory
-    # Maps SQLAlchemy 'blob_url' to Pydantic 'storageUrl'
     storageUrl:   str          = Field(validation_alias="blob_url")
     fileSize:     int          = Field(validation_alias="file_size")
     uploadedAt:   str          = Field(validation_alias="uploaded_at_str")
@@ -90,18 +85,19 @@ class DocumentOut(UdyogBase):
 
     @classmethod
     def from_orm_model(cls, doc: Any) -> "DocumentOut":
+        # 👈 FIX: Use camelCase properties to silence the PyCharm linter
         return cls(
             id=str(doc.id),
-            file_name=doc.file_name,
-            original_name=doc.original_name,
+            fileName=doc.file_name,
+            originalName=doc.original_name,
             category=doc.category.value if hasattr(doc.category, 'value') else doc.category,
-            blob_url=getattr(doc, 'blob_url', ""),
-            file_size=doc.file_size,
-            uploaded_at_str=doc.uploaded_at.isoformat(),
+            storageUrl=getattr(doc, 'blob_url', ""),
+            fileSize=doc.file_size,
+            uploadedAt=doc.uploaded_at.isoformat(),
             status=doc.status.value if hasattr(doc.status, 'value') else doc.status,
             tags=doc.tags or [],
-            uploaded_by_name=doc.uploaded_by_name,
-            page_count=doc.page_count,
+            uploadedBy=doc.uploaded_by_name,
+            pageCount=doc.page_count,
         )
 
 
@@ -109,6 +105,7 @@ class DocumentListResponse(UdyogBase):
     documents: List[DocumentOut]
     total:     int
     page:      int
+    # 👈 FIX: Maps the python page_size to the React pageSize safely
     pageSize:  int = Field(validation_alias="page_size")
 
 
@@ -131,13 +128,14 @@ class ActivityItemOut(UdyogBase):
 
     @classmethod
     def from_orm_model(cls, log: Any) -> "ActivityItemOut":
+        # 👈 FIX: Use camelCase properties to silence the PyCharm linter
         return cls(
             id=str(log.id),
             action=log.action.value if hasattr(log.action, 'value') else log.action,
-            document_name=log.document_name,
-            document_category=log.document_category.value if hasattr(log.document_category, 'value') else log.document_category,
-            timestamp_str=log.timestamp.isoformat(),
-            user_name=log.user_name,
+            documentName=log.document_name,
+            category=log.document_category.value if hasattr(log.document_category, 'value') else log.document_category,
+            timestamp=log.timestamp.isoformat(),
+            user=log.user_name,
         )
 
 
