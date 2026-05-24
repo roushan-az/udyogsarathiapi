@@ -31,6 +31,8 @@ from app.schemas.document import (
 )
 from app.services import blob_service, pdf_service
 
+from app.models.document import ActivityAction, ActivityLog, Document, DocumentCategory, DocumentStatus, User
+
 logger = get_logger(__name__)
 
 
@@ -170,11 +172,12 @@ async def upload_document(
             original_error=str(db_exc),
         )
 
-
 # ── List ──────────────────────────────────────────────────────────────────────
 
 async def list_documents(
     db:        AsyncSession,
+    user_id:   str,               # 👈 Added
+    is_superuser: bool,           # 👈 Added
     category:  Optional[str] = None,
     status:    Optional[str] = None,
     search:    Optional[str] = None,
@@ -188,6 +191,15 @@ async def list_documents(
         .where(Document.is_deleted == False)  # noqa: E712
         .order_by(Document.uploaded_at.desc())
     )
+
+    # 🔒 THE VISIBILITY GATE 🔒
+    if not is_superuser:
+        # Regular users ONLY see their own documents
+        try:
+            stmt = stmt.where(Document.uploaded_by_id == uuid.UUID(user_id))
+        except ValueError:
+            # Fallback for dev-user or invalid UUIDs
+            stmt = stmt.where(Document.uploaded_by_id == None)
 
     if category and category != "All":
         stmt = stmt.where(Document.category == DocumentCategory(category))
@@ -221,7 +233,6 @@ async def list_documents(
         page=page,
         page_size=page_size,
     )
-
 
 # ── Get single ────────────────────────────────────────────────────────────────
 

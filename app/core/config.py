@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    ADMIN_SECRET_KEY: str = ""
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "https://calm-bush-0db371d1e.7.azurestaticapps.net,http://localhost:3000,http://localhost:5173"
 

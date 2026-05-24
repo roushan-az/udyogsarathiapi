@@ -11,6 +11,9 @@ from app.schemas.document import DocumentListResponse, DocumentOut, UploadRespon
 from app.services import document_service
 from app.services.user_service import resolve_user_display
 
+from app.services.user_service import resolve_user_display, get_user_by_id, UserNotFoundError
+import uuid
+
 logger = get_logger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -66,12 +69,10 @@ async def upload_document(
         user_id=user_id,
         user_name=uploader_name,   # real name from DB, not hardcoded "Admin"
     )
-
-
 # ── GET /documents/ ───────────────────────────────────────────────────────────
 
 @router.get(
-    "/",
+    "/",  # 👈 PUT THE SLASH BACK HERE!
     response_model=DocumentListResponse,
     summary="List documents with server-side filter + pagination",
 )
@@ -84,10 +85,24 @@ async def list_documents(
     page:      int           = Query(1, ge=1),
     page_size: int           = Query(10, ge=1, le=100),
     db:        AsyncSession  = Depends(get_db),
-    _:         str           = Depends(get_current_user_id),
+    user_id:   str           = Depends(get_current_user_id),
 ) -> DocumentListResponse:
+
+    # 🔒 Safe Role Check (prevents 404 DB crashes)
+    is_superuser = False
+    if user_id == "dev-user":
+        is_superuser = True
+    else:
+        try:
+            user = await get_user_by_id(db, user_id)
+            is_superuser = user.is_superuser
+        except UserNotFoundError:
+            is_superuser = False
+
     return await document_service.list_documents(
         db=db,
+        user_id=user_id,
+        is_superuser=is_superuser,
         category=category,
         status=status,
         search=search,
@@ -96,8 +111,6 @@ async def list_documents(
         page=page,
         page_size=page_size,
     )
-
-
 # ── GET /documents/{id} ───────────────────────────────────────────────────────
 
 @router.get(
