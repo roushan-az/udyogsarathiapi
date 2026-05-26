@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     ADMIN_SECRET_KEY: str = ""
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: str = "https://calm-bush-0db371d1e.7.azurestaticapps.net,http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:

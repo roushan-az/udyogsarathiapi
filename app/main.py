@@ -102,6 +102,16 @@ def create_app() -> FastAPI:
         expose_headers=["X-Total-Count", "X-Request-ID"],
     )
 
+    # CORSMiddleware using your unified config settings
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Total-Count", "X-Request-ID"],
+    )
+
     # Gzip compression for JSON responses
     app.add_middleware(GZipMiddleware, minimum_size=1000)
 
