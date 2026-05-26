@@ -14,12 +14,14 @@ from app.core.exceptions import (
     UnsupportedFileTypeError,
 )
 from app.core.logging import get_logger
+
 from app.models.document import (
     ActivityAction,
     ActivityLog,
     Document,
     DocumentCategory,
     DocumentStatus,
+    User
 )
 from app.schemas.document import (
     ActivityItemOut,
@@ -30,8 +32,6 @@ from app.schemas.document import (
     UploadResponse,
 )
 from app.services import blob_service, pdf_service
-
-from app.models.document import ActivityAction, ActivityLog, Document, DocumentCategory, DocumentStatus, User
 
 logger = get_logger(__name__)
 
@@ -176,19 +176,21 @@ async def upload_document(
 
 async def list_documents(
     db:        AsyncSession,
-    user_id:   str,               # 👈 Added
-    is_superuser: bool,           # 👈 Added
+    user_id:   str,
+    is_superuser: bool,
     category:  Optional[str] = None,
     status:    Optional[str] = None,
     search:    Optional[str] = None,
     date_from: Optional[str] = None,
     date_to:   Optional[str] = None,
+    uploader_id: Optional[str] = None,
     page:      int = 1,
     page_size: int = 10,
 ) -> DocumentListResponse:
     stmt = (
-        select(Document)
-        .where(Document.is_deleted == False)  # noqa: E712
+        select(Document, User.full_name)
+        .outerjoin(User, Document.uploaded_by_id == User.id)
+        .where(Document.is_deleted == False)
         .order_by(Document.uploaded_at.desc())
     )
 
@@ -200,6 +202,13 @@ async def list_documents(
         except ValueError:
             # Fallback for dev-user or invalid UUIDs
             stmt = stmt.where(Document.uploaded_by_id == None)
+    else:
+        # 👈 Superusers can filter by uploader_id
+        if uploader_id and uploader_id != "All":
+            try:
+                stmt = stmt.where(Document.uploaded_by_id == uuid.UUID(uploader_id))
+            except ValueError:
+                pass
 
     if category and category != "All":
         stmt = stmt.where(Document.category == DocumentCategory(category))
@@ -227,13 +236,18 @@ async def list_documents(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     docs = (await db.execute(stmt)).scalars().all()
 
+    result = await db.execute(stmt)
+    rows = result.all()
+
     return DocumentListResponse(
-        documents=[DocumentOut.from_orm_model(d) for d in docs],
+        documents=[
+            DocumentOut.from_orm_model(doc, uploaded_by_name=name)
+            for doc, name in rows
+        ],
         total=total,
         page=page,
-        page_size=page_size,
+        pageSize=page_size,
     )
-
 # ── Get single ────────────────────────────────────────────────────────────────
 
 async def get_document(db: AsyncSession, document_id: str) -> Document:

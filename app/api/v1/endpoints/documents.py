@@ -82,6 +82,7 @@ async def list_documents(
     search:    Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to:   Optional[str] = Query(None),
+    uploader_id: Optional[str] = Query(None),
     page:      int           = Query(1, ge=1),
     page_size: int           = Query(10, ge=1, le=10000),
     db:        AsyncSession  = Depends(get_db),
@@ -108,6 +109,7 @@ async def list_documents(
         search=search,
         date_from=date_from,
         date_to=date_to,
+        uploader_id=uploader_id,
         page=page,
         page_size=page_size,
     )

@@ -84,8 +84,7 @@ class DocumentOut(UdyogBase):
     pageCount:    Optional[int]= Field(None, validation_alias="page_count")
 
     @classmethod
-    def from_orm_model(cls, doc: Any) -> "DocumentOut":
-        # 👈 FIX: Use camelCase properties to silence the PyCharm linter
+    def from_orm_model(cls, doc: Any, uploaded_by_name: str = None) -> "DocumentOut":
         return cls(
             id=str(doc.id),
             fileName=doc.file_name,
@@ -96,16 +95,14 @@ class DocumentOut(UdyogBase):
             uploadedAt=doc.uploaded_at.isoformat(),
             status=doc.status.value if hasattr(doc.status, 'value') else doc.status,
             tags=doc.tags or [],
-            uploadedBy=doc.uploaded_by_name,
+            uploadedBy=uploaded_by_name or getattr(doc, 'uploaded_by_name', None),
             pageCount=doc.page_count,
         )
-
 
 class DocumentListResponse(UdyogBase):
     documents: List[DocumentOut]
     total:     int
     page:      int
-    # 👈 FIX: Maps the python page_size to the React pageSize safely
     pageSize:  int = Field(validation_alias="page_size")
 
 
