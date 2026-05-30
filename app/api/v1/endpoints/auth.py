@@ -71,7 +71,7 @@ email_provider = EmailOTPProvider(mail_config)
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Registers a new user."""
     user = await create_user(db, body)
-    return UserOut.model_validate(user) # <--- Reverted to from_orm
+    return UserOut.from_orm_model(user)
 
 
 @router.post("/login", response_model=TokenResponse)
