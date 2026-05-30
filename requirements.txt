@@ -21,6 +21,8 @@ img2pdf==0.5.1                    # fast lossless image-to-PDF (fallback)
 python-jose[cryptography]==3.3.0  # JWT tokens
 passlib[bcrypt]==1.7.4            # password hashing
 bcrypt==4.2.1
+fastapi-mail>=1.6.4               # Added: Email OTP functionality
+email-validator>=2.1.0            # Added: Required by fastapi-mail
 
 # ── Configuration ─────────────────────────────────────────────────
 pydantic>=2.13.4
