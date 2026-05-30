@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     PDF_IMAGE_QUALITY: int = 95
     PDF_DPI: int = 150
 
+    # ── Mial COnfiguratoin ─────────────────────────────────────────────────────
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = "noreply@udyogsarathi.com"
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "smtp.gmail.com"
+
     @property
     def max_upload_size_bytes(self) -> int:
         return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024

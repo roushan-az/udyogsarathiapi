@@ -23,20 +23,22 @@ class Base(DeclarativeBase):
 
 
 # ── Engine ───────────────────────────────────────────────────────────────────
+connect_args = {
+    "server_settings": {
+        "jit": "off"  # Sometimes helps with stability on managed cloud DBs
+    }
+}
 
 # app/db/base.py
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-
-    # 2. USE NULLPOOL: Let Supabase handle all pooling!
-    poolclass=NullPool,
-
-    # 3. REMOVE pool_size, max_overflow, pool_timeout, and pool_recycle.
-    # 4. ADD the statement_cache_size bypass
-    connect_args={
-        "statement_cache_size": 0
-    }
+   # Enable inProd
+    #poolclass=NullPool,
+    # Use these exact settings to force asyncpg to stop preparing statements
+    #connect_args={
+     #   "statement_cache_size": 0
+    #}
 )
 
 # ── Session factory ───────────────────────────────────────────────────────────
