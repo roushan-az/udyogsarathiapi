@@ -6,7 +6,8 @@ from app.db.base import Base
 class OTPStore(Base):
     __tablename__ = "otp_store"
 
-    id = Column(Integer, primary_key=True, autoincrement=True) # <-- Fixed
+    # Changed from UUID to Integer with autoincrement to match your database schema
+    id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String, index=True, nullable=False)
     otp_code = Column(String, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
