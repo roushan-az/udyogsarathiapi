@@ -4,28 +4,49 @@ Udyog Sarathi — FastAPI Application Entry Point
 
 This file creates the FastAPI app, configures:
   • CORS (React Static Web App origin)
-  • Lifespan (startup / shutdown hooks)
+  • Lifespan (startup / shutdown hooks + background tasks)
   • All API routers
   • Custom exception handlers
   • OpenAPI metadata
 """
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import delete
 
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
-from app.db.base import check_db_health, engine
+from app.db.base import check_db_health, engine, AsyncSessionLocal
+from app.models.otp import OTPStore
 
 logger = get_logger(__name__)
+
+
+# ── Background Tasks ──────────────────────────────────────────────────────────
+
+async def cleanup_expired_otps():
+    """Runs continuously in the background to delete expired OTPs."""
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                # Delete any OTP where the current time is past the expires_at time
+                await db.execute(delete(OTPStore).where(OTPStore.expires_at < datetime.now(timezone.utc)))
+                await db.commit()
+        except Exception as e:
+            logger.error("otp_cleanup_error", error=str(e))
+
+        # Sleep for 1 hour before checking again
+        await asyncio.sleep(3600)
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
@@ -51,10 +72,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("startup_db_ok")
 
+    # Start the OTP background cleanup task
+    cleanup_task = asyncio.create_task(cleanup_expired_otps())
+    logger.info("otp_cleanup_task_started")
+
     yield  # ← app is running
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
     logger.info("app_shutdown")
+
+    # Cancel the background task gracefully
+    cleanup_task.cancel()
+
     await engine.dispose()
 
 
@@ -82,8 +111,8 @@ def create_app() -> FastAPI:
 
     # 1. FIXED CORS: Explicitly defining origins instead of relying on settings
     allowed_origins = [
-        "http://localhost:5173", # Keep local development working
-        "https://calm-bush-0db371d1e.7.azurestaticapps.net" # Your live React app
+        "http://localhost:5173",  # Keep local development working
+        "https://calm-bush-0db371d1e.7.azurestaticapps.net"  # Your live React app
     ]
 
     # Combine with any settings just in case
@@ -97,18 +126,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"], # Allow all methods explicitly
-        allow_headers=["*"], # Allow all headers explicitly
-        expose_headers=["X-Total-Count", "X-Request-ID"],
-    )
-
-    # CORSMiddleware using your unified config settings
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # Allow all methods explicitly
+        allow_headers=["*"],  # Allow all headers explicitly
         expose_headers=["X-Total-Count", "X-Request-ID"],
     )
 
@@ -134,6 +153,7 @@ def create_app() -> FastAPI:
 
     # ── Exception handlers ────────────────────────────────────────────────────
     register_exception_handlers(app)
+
     # ── Local File Serving (Offline Mode) ─────────────────────────────────────
     if settings.USE_LOCAL_STORAGE:
         os.makedirs(settings.LOCAL_UPLOAD_DIR, exist_ok=True)

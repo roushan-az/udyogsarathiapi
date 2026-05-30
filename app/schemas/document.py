@@ -55,6 +55,7 @@ class UserOut(UdyogBase):
     fullName:    str  = Field(validation_alias="full_name")
     isActive:    bool = Field(validation_alias="is_active")
     isSuperuser: bool = Field(validation_alias="is_superuser")
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_orm_model(cls, user: Any) -> "UserOut":

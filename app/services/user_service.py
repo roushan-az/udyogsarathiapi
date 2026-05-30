@@ -34,15 +34,20 @@ class AccountDisabledError(UdyogBaseException):
     error_code = "ACCOUNT_DISABLED"
 
 
-async def get_user_by_id(db: AsyncSession, user_id: str) -> User:
+async def get_user_by_id(db: AsyncSession, user_id: str, include_inactive: bool = False) -> User:
     """Fetch a user by UUID string. Raises UserNotFoundError if missing."""
     try:
         uid = uuid.UUID(user_id)
     except ValueError:
         raise UserNotFoundError(detail=f"Invalid user ID: {user_id}")
 
-    result = await db.execute(select(User).where(User.id == uid, User.is_active == True))
+    query = select(User).where(User.id == uid)
+    if not include_inactive:
+        query = query.where(User.is_active == True)
+
+    result = await db.execute(query)
     user = result.scalar_one_or_none()
+
     if not user:
         raise UserNotFoundError(detail=f"User '{user_id}' not found or inactive.")
     return user
@@ -135,19 +140,57 @@ async def update_user_profile(
 
 async def deactivate_user(db: AsyncSession, user_id: str) -> None:
     """Soft-disable an account (admin action)."""
-    user = await get_user_by_id(db, user_id)
+    user = await get_user_by_id(db, user_id, include_inactive=True)
     user.is_active = False
     await db.commit()
     logger.info("user_deactivated", user_id=str(user.id))
 
-
 async def get_all_users(db: AsyncSession) -> list[User]:
-    """List all active users — superuser only."""
+    """List all active and inactive users — superuser only."""
     result = await db.execute(
-        select(User).where(User.is_active == True).order_by(User.created_at.desc())
+        select(User).order_by(User.created_at.desc())
     )
     return list(result.scalars().all())
 
+# -------------------------------------------------------------------------
+# NEW ADMIN-SPECIFIC FUNCTIONS REQUIRED BY REACT FRONTEND
+# -------------------------------------------------------------------------
+
+async def update_user_role(db: AsyncSession, user_id: str, is_superuser: bool) -> User:
+    """Admin action: Promote to Admin or Demote to User."""
+    user = await get_user_by_id(db, user_id, include_inactive=True)
+    user.is_superuser = is_superuser
+    await db.commit()
+    await db.refresh(user)
+    logger.info("user_role_updated", user_id=str(user.id), is_superuser=is_superuser)
+    return user
+
+
+async def update_user_status(db: AsyncSession, user_id: str, is_active: bool) -> User:
+    """Admin action: Activate or Deactivate a user account."""
+    user = await get_user_by_id(db, user_id, include_inactive=True)
+    user.is_active = is_active
+    await db.commit()
+    await db.refresh(user)
+    logger.info("user_status_updated", user_id=str(user.id), is_active=is_active)
+    return user
+
+
+async def admin_reset_user_password(db: AsyncSession, user_id: str, new_password: str) -> User:
+    """Admin action: Force reset a user's password without needing the old password."""
+    user = await get_user_by_id(db, user_id, include_inactive=True)
+    user.hashed_password = hash_password(new_password)
+    await db.commit()
+    logger.info("admin_forced_password_reset", user_id=str(user.id))
+    return user
+
+
+async def delete_user(db: AsyncSession, user_id: str) -> None:
+    """Admin action: Permanently delete a user from the database."""
+    user = await get_user_by_id(db, user_id, include_inactive=True)
+    await db.delete(user)
+    await db.commit()
+    logger.info("user_deleted", user_id=str(user_id))
 
 async def resolve_user_display(db: AsyncSession, user_id: Optional[str]) -> tuple[Optional[uuid.UUID], str]:
     """
