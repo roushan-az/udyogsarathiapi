@@ -108,26 +108,12 @@ def create_app() -> FastAPI:
     )
 
     # ── Middleware ────────────────────────────────────────────────────────────
-
-    # 1. FIXED CORS: Explicitly defining origins instead of relying on settings
-    allowed_origins = [
-        "http://localhost:5173",  # Keep local development working
-        "https://calm-bush-0db371d1e.7.azurestaticapps.net"  # Your live React app
-    ]
-
-    # Combine with any settings just in case
-    if isinstance(settings.cors_origins_list, list):
-        allowed_origins.extend(settings.cors_origins_list)
-
-    # Remove duplicates
-    allowed_origins = list(set(allowed_origins))
-
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=allowed_origins,
+        allow_origins=settings.cors_origins_list,  # Completely dynamic based on env vars
         allow_credentials=True,
-        allow_methods=["*"],  # Allow all methods explicitly
-        allow_headers=["*"],  # Allow all headers explicitly
+        allow_methods=["*"],
+        allow_headers=["*"],
         expose_headers=["X-Total-Count", "X-Request-ID"],
     )
 

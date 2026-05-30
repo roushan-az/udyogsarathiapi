@@ -1,6 +1,6 @@
 # ── Web Framework ─────────────────────────────────────────────────
-fastapi==0.115.6
-uvicorn[standard]==0.32.1
+fastapi>=0.116.0
+uvicorn[standard]>=0.32.1
 python-multipart==0.0.18          # multipart/form-data file uploads
 
 # ── Database (PostgreSQL async) ────────────────────────────────────
@@ -23,7 +23,7 @@ passlib[bcrypt]==1.7.4            # password hashing
 bcrypt==4.2.1
 
 # ── Configuration ─────────────────────────────────────────────────
-pydantic==2.10.3
+pydantic>=2.13.4
 pydantic-settings==2.7.0          # settings from .env
 python-dotenv==1.0.1
 
@@ -40,6 +40,3 @@ structlog==24.4.0                 # structured JSON logging
 pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
-
-fastapi-mail>=1.4.1
-email-validator>=2.1.0
